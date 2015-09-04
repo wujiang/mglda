@@ -31,12 +31,12 @@ type MGLDA struct {
 	GlobalAlpha    float64
 	LocalAlpha     float64
 	GlobalAlphaMix float64
-	LocalAlphaMix  folat64
+	LocalAlphaMix  float64
 	GlobalBeta     float64
 	LocalBeta      float64
 	Docs           []*Document
-	T              float64
-	W              float64
+	T              int
+	W              int
 	Inflation      float64
 
 	Vdsn [][][]int // sliding window for each word
@@ -64,46 +64,45 @@ type MGLDA struct {
 func (m *MGLDA) Inference() {
 	for d, doc := range m.Docs {
 		wg.Add(1)
-		go func(d int, d *Document) {
+		go func(d int, doc *Document) {
 			defer wg.Done()
 
-			for s, sent := range doc {
-				for w, wd := range sent {
+			for s, sent := range doc.sentenses {
+				for w, wd := range sent.words {
 					v := m.Vdsn[d][s][w]
 					r := m.Rdsn[d][s][w]
 					z := m.Zdsn[d][s][w]
 
 					if r == globalTopic {
 						m.Nglzw.Set(z, wd, m.Nglzw.Get(z, wd)-1)
-						m.Nglz.Set(z, m.Nglz.Get(z)-1)
+						m.Nglz.Set(z, 1, m.Nglz.Get(z, 1)-1)
 						m.Ndvgl.Set(d, s-v, m.Ndvgl.Get(d, s-v)-1)
 						m.Ndglz.Set(d, z, m.Ndglz.Get(d, z)-1)
-						m.Ndgl.Set(d, m.Ndgl.Get(d)-1)
+						m.Ndgl.Set(d, 1, m.Ndgl.Get(d, 1)-1)
 					} else {
-						m.Nloczw.Set(z, word, m.Nloczw.Get(z, word)-1)
-						m.Nlocz.Set(z, m.Nlocz.Get(z)-1)
+						m.Nloczw.Set(z, wd, m.Nloczw.Get(z, wd)-1)
+						m.Nlocz.Set(z, 1, m.Nlocz.Get(z, 1)-1)
 						m.Ndvloc.Set(d, s-v, m.Ndvloc.Get(d, s-v)-1)
 						m.Ndvlocz[d][s-v][z] -= 1
 					}
 					m.Ndsv[d][s][v] -= 1
 					m.Nds[d][s] -= 1
-					m.Ndv[d][s-v] -= 1
+					m.Ndv.Set(d, s-v, m.Ndv.Get(d, s-v)-1)
 
 					pvrz := []float64{}
 					newVs := []int{}
 					newRs := []string{}
 					newZs := []int{}
 					for vt := 0; vt < m.T; vt++ {
-						newV = vt
 						for zt := 0; zt < m.GlobalK; zt++ {
 							newVs = append(newVs, vt)
 							newRs = append(newRs, globalTopic)
 							newZs = append(newZs, zt)
 
-							term1 := (m.Nglzw.Get(zt, wd) + m.GlobalBeta) / (m.Nglz.Get(zt) + m.W*m.GlobalBeta)
-							term2 := (m.Ndsv[d][s][vt] + m.Gamma) / (m.Nds[d][s] + m.T*m.Gamma)
+							term1 := (m.Nglzw.Get(zt, wd) + m.GlobalBeta) / (m.Nglz.Get(zt, 1) + float64(m.W)*m.GlobalBeta)
+							term2 := (m.Ndsv[d][s][vt] + m.Gamma) / (m.Nds[d][s] + float64(m.T)*m.Gamma)
 							term3 := (m.Ndvgl.Get(d, s+vt) + m.GlobalAlpha) / (m.Ndv.Get(d, s+vt) + m.GlobalAlphaMix + m.LocalAlphaMix)
-							term4 := (m.Ndglz.Get(d, zt) + m.GlobalAlpha) / (m.Ndgl.Get(d) + m.GlobalK*m.GlobalAlpha)
+							term4 := (m.Ndglz.Get(d, zt) + m.GlobalAlpha) / (m.Ndgl.Get(d, 1) + float64(m.GlobalK)*m.GlobalAlpha)
 							pvrz = append(pvrz, term1*term2*term3*term4)
 						}
 						for zt := 0; zt < m.LocalK; zt++ {
@@ -111,10 +110,10 @@ func (m *MGLDA) Inference() {
 							newRs = append(newRs, localTopic)
 							newZs = append(newZs, zt)
 
-							term1 := (m.Nloczw.Get(zt, wd) + m.LocalBeta) / (m.Nlocz.Get(zt) + m.W*m.LocalBeta)
-							term2 := (m.Ndsv[d][s][vt] + m.Gamma) / (m.Nds[d][s] + m.T*m.Gamma)
+							term1 := (m.Nloczw.Get(zt, wd) + m.LocalBeta) / (m.Nlocz.Get(zt, 1) + float64(m.W)*m.LocalBeta)
+							term2 := (m.Ndsv[d][s][vt] + m.Gamma) / (m.Nds[d][s] + float64(m.T)*m.Gamma)
 							term3 := (m.Ndvloc.Get(d, s+vt) + m.LocalAlphaMix) / (m.Ndv.Get(d, s+vt) + m.GlobalAlphaMix + m.LocalAlphaMix)
-							term4 := (m.Ndvlocz[d][s+vt][zt] + m.LocalAlpha) / (m.Ndvloc.Get(d, s+vt) + m.LocalK*m.LocalAlpha)
+							term4 := (m.Ndvlocz[d][s+vt][zt] + m.LocalAlpha) / (m.Ndvloc.Get(d, s+vt) + float64(m.LocalK)*m.LocalAlpha)
 							pvrz = append(pvrz, term1*term2*term3*term4)
 						}
 					}
@@ -127,19 +126,19 @@ func (m *MGLDA) Inference() {
 					// update
 					if newR == globalTopic {
 						m.Nglzw.Set(newZ, wd, m.Nglzw.Get(newZ, wd)+1)
-						m.Nglz.Set(newZ, m.Nglz.Get(newZ)+1)
+						m.Nglz.Set(newZ, 1, m.Nglz.Get(newZ, 1)+1)
 						m.Ndvgl.Set(d, s+newV, m.Ndvgl.Get(d, s+newV)+1)
 						m.Ndglz.Set(d, newZ, m.Ndglz.Get(d, newZ)+1)
-						m.Ndgl.Set(d, m.Ndgl.Get(d)+1)
+						m.Ndgl.Set(d, 1, m.Ndgl.Get(d, 1)+1)
 					} else {
 						m.Nloczw.Set(newZ, wd, m.Nloczw.Get(newZ, wd)+1)
-						m.Nlocz.Set(newZ, m.Nlocz.Get(newZ)+1)
+						m.Nlocz.Set(newZ, 1, m.Nlocz.Get(newZ, 1)+1)
 						m.Ndvloc.Set(d, s+newV, m.Ndvloc.Get(d, s+newV)+1)
 						m.Ndvlocz[d][s+newV][newZ] += 1
 					}
 					m.Ndsv[d][s][newV] += 1
 					m.Nds[d][s] += 1
-					m.Ndv[d][s+newV] += 1
+					m.Ndv.Set(d, s+newV, m.Ndv.Get(d, s+newV)+1)
 
 					m.Vdsn[d][s][w] = newV
 					m.Rdsn[d][s][w] = newR
@@ -152,9 +151,43 @@ func (m *MGLDA) Inference() {
 	wg.Wait()
 }
 
+// WordDist returns a topic word distribution
+func (m *MGLDA) WordDist() (*matrix.DenseMatrix, *matrix.DenseMatrix) {
+	newNglzw := m.Nglzw.Copy()
+	if err := newNglzw.AddDense(matrix.Ones(newNglzw.Rows(), newNglzw.Cols())); err != nil {
+		panic(err)
+	}
+	newNglz := m.Nglz.Copy()
+	if err := newNglz.AddDense(matrix.Ones(newNglz.Rows(), newNglz.Cols())); err != nil {
+		panic(err)
+	}
+	newNglz.Scale(float64(0.1))
+
+	newNloczw := m.Nloczw.Copy()
+	if err := m.Nloczw.AddDense(matrix.Ones(m.Nloczw.Rows(), m.Nloczw.Cols())); err != nil {
+		panic(err)
+	}
+	newNlocz := m.Nlocz.Copy()
+
+	if err := newNlocz.AddDense(matrix.Ones(m.Nlocz.Rows(), m.Nlocz.Cols())); err != nil {
+		panic(err)
+	}
+	newNlocz.Scale(float64(0.1))
+
+	gl, err := newNglzw.TimesDense(newNglz)
+	if err != nil {
+		panic(err)
+	}
+	loc, err := newNloczw.TimesDense(newNlocz)
+	if err != nil {
+		panic(err)
+	}
+	return gl, loc
+}
+
 func NewMGLDA(globalK, localK int, gamma, globalAlpha, localAlpha,
-	globalAlphaMix, localAlphaMix, globalBeta, localBeta,
-	t, w float64, docs []*Document) *MGLDA {
+	globalAlphaMix, localAlphaMix, globalBeta, localBeta float64,
+	t, w int, docs []*Document) *MGLDA {
 
 	docLen := len(docs)
 	inflation := float64(0)
@@ -173,11 +206,11 @@ func NewMGLDA(globalK, localK int, gamma, globalAlpha, localAlpha,
 		W:              w,
 		Inflation:      inflation,
 
-		Nglzw:  matrix.Zeros(globalK, localL),
+		Nglzw:  matrix.Zeros(globalK, w),
 		Nglz:   matrix.Zeros(globalK, 1),
 		Ndglz:  matrix.Zeros(docLen, globalK),
 		Ndgl:   matrix.Zeros(docLen, 1),
-		Nloczw: matrix.Zeros(globalK, w),
+		Nloczw: matrix.Zeros(localK, w),
 		Nlocz:  matrix.Zeros(localK, 1),
 
 		Ndvgl:  matrix.Numbers(docLen, t+docLen, inflation),
@@ -185,20 +218,20 @@ func NewMGLDA(globalK, localK int, gamma, globalAlpha, localAlpha,
 		Ndvloc: matrix.Numbers(docLen, t+docLen, inflation),
 	}
 
-	for d, doc := range docs {
+	for _, doc := range docs {
 		vd := [][]int{}
 		rd := [][]string{}
 		zd := [][]int{}
 		ndsvd := [][]float64{}
 		ndsd := []float64{}
 
-		m.Ndvlocz = append(m.Ndvlocz, matrix.Numbers(docLen, t+docLen, inflation))
+		m.Ndvlocz = append(m.Ndvlocz, matrix.Numbers(docLen, t+docLen, inflation).Arrays())
 
-		for s, sts := range doc.sentenses {
+		for _, sts := range doc.sentenses {
 			vs := []int{}
 			rs := []string{}
 			zs := []int{}
-			for w, word := range sts.words {
+			for _ = range sts.words {
 				vs = append(vs, rand.Intn(t))
 
 				tp := rand.Intn(2)
@@ -240,19 +273,19 @@ func NewMGLDA(globalK, localK int, gamma, globalAlpha, localAlpha,
 				z := m.Zdsn[d][s][w]
 				if r == globalTopic {
 					m.Nglzw.Set(z, wd, m.Nglzw.Get(z, wd)+1)
-					m.Nglz.Set(z, m.Nglz.Get(z)+1)
+					m.Nglz.Set(z, 1, m.Nglz.Get(z, 1)+1)
 					m.Ndvgl.Set(d, s+v, m.Ndvgl.Get(d, s+v)+1)
 					m.Ndglz.Set(d, z, m.Ndglz.Get(d, z)+1)
-					m.Ndgl.Set(d, m.Ndgl.Get(d)+1)
+					m.Ndgl.Set(d, 1, m.Ndgl.Get(d, 1)+1)
 				} else {
 					m.Nloczw.Set(z, wd, m.Nloczw.Get(z, wd)+1)
-					m.Nlocz.Set(z, m.Nlocz.Get(z)+1)
+					m.Nlocz.Set(z, 1, m.Nlocz.Get(z, 1)+1)
 					m.Ndvloc.Set(d, s+v, m.Ndvloc.Get(d, s+v)+1)
 					m.Ndvlocz[d][s+v][z] += 1
 				}
 				m.Ndsv[d][s][v] += 1
 				m.Nds[d][s] += 1
-				m.Ndv[d][s+v] += 1
+				m.Ndv.Set(d, s+v, m.Ndv.Get(d, s+v)+1)
 			}
 		}
 	}
