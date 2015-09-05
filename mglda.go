@@ -4,10 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"math/rand"
-	"sort"
 	"sync"
 
 	"github.com/golang/glog"
+	"github.com/gonum/floats"
 	"github.com/skelterjohn/go.matrix"
 )
 
@@ -327,13 +327,12 @@ func GetWordTopicDist(m *MGLDA, vocabulary []string, wt *bufio.Writer) {
 	}
 
 	glog.Info("Get words distribution")
-	fmt.Println("Get words distribution")
 	for d, doc := range *m.Docs {
-		// topicWG.Add(1)
+		topicWG.Add(1)
 
 		// go func(d int, doc Document) {
 		func(d int, doc Document) {
-			// defer topicWG.Done()
+			defer topicWG.Done()
 			for s, sent := range doc.Sentenses {
 				for w, wd := range sent.Words {
 					r := m.Rdsn[d][s][w]
@@ -358,15 +357,20 @@ func GetWordTopicDist(m *MGLDA, vocabulary []string, wt *bufio.Writer) {
 			}
 		}(d, doc)
 	}
-	// topicWG.Wait()
-	fmt.Println("done")
+	topicWG.Wait()
 	glog.Info("Done dist")
 	phiGl, phiLoc := m.WordDist()
 	for i := 0; i < m.GlobalK; i++ {
 		header := fmt.Sprintf("-- global topic: %d (%d words)\n", i, zGlCount[i])
 		wt.WriteString(header)
 		glog.Info(header)
-		for _, w := range topIndice(phiGl.RowCopy(i), topicLimit) {
+		rows := phiGl.RowCopy(i)
+		idx := []int{}
+		for j := 0; j < len(rows); j++ {
+			idx = append(idx, j)
+		}
+		floats.Argsort(rows, idx)
+		for _, w := range idx[:topicLimit] {
 			tp := fmt.Sprintf("%s: %f (%d)\n",
 				vocabulary[w], phiGl.Get(i, w),
 				wordGlCount[i][w])
@@ -378,7 +382,13 @@ func GetWordTopicDist(m *MGLDA, vocabulary []string, wt *bufio.Writer) {
 		header := fmt.Sprintf("-- local topic: %d (%d words)\n", i, zLocCount[i])
 		wt.WriteString(header)
 		glog.Info(header)
-		for _, w := range topIndice(phiLoc.RowCopy(i), topicLimit) {
+		rows := phiLoc.RowCopy(i)
+		idx := []int{}
+		for j := 0; j < len(rows); j++ {
+			idx = append(idx, j)
+		}
+		floats.Argsort(rows, idx)
+		for _, w := range idx[:topicLimit] {
 			tp := fmt.Sprintf("%s: %f (%d)\n",
 				vocabulary[w], phiLoc.Get(i, w),
 				wordLocCount[i][w])
@@ -387,25 +397,6 @@ func GetWordTopicDist(m *MGLDA, vocabulary []string, wt *bufio.Writer) {
 		}
 	}
 
-}
-
-func topIndice(array []float64, limit int) []int {
-	if len(array)-limit < 0 {
-		limit = len(array)
-	}
-	mp := map[float64]int{}
-	for i, a := range array {
-		mp[a] = i
-	}
-
-	sort.Float64s(array)
-	keys := array[len(array)-limit:]
-
-	idx := []int{}
-	for _, k := range keys {
-		idx = append([]int{mp[k]}, idx...)
-	}
-	return idx
 }
 
 func Learning(m *MGLDA, iteration int, vocabulary []string, wt *bufio.Writer) {
