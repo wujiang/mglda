@@ -1,0 +1,14 @@
+without go routine, 4k reviews
+
+I0904 23:23:34.089884   22737 mglda.go:405] ==== 0-th inference ====
+I0904 23:23:51.815436   22737 mglda.go:407] inference completed
+I0904 23:23:51.815703   22737 mglda.go:329] Get words distribution
+I0904 23:23:51.852863   22737 mglda.go:361] Done dist
+
+with go routine, 4k reviews
+
+I0904 23:26:04.462494    9708 mglda.go:405] ==== 0-th inference ====
+I0904 23:26:22.944729    9708 mglda.go:407] inference completed
+I0904 23:26:22.944985    9708 mglda.go:329] Get words distribution
+I0904 23:26:22.995024    9708 mglda.go:361] Done dist
+

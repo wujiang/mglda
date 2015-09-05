@@ -56,7 +56,9 @@ func main() {
 	m := mglda.NewMGLDA(globalK, localK, gamma, globalAlpha, localAlpha,
 		globalAlphaMix, localAlphaMix, globalBeta, localBeta,
 		uT, uW, &docs)
-	wt := bufio.NewWriter(os.Stdout)
+	out, _ := os.Create("woot")
+	defer out.Close()
+	wt := bufio.NewWriter(out)
 	defer wt.Flush()
 	mglda.Learning(m, 1000, data.Vocabulary, wt)
 }

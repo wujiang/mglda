@@ -67,8 +67,8 @@ type MGLDA struct {
 func (m *MGLDA) Inference() {
 	for d, doc := range *m.Docs {
 		inferenceWG.Add(1)
-		// go func(d int, doc Document) {
-		func(d int, doc Document) {
+		go func(d int, doc Document) {
+			// func(d int, doc Document) {
 			defer inferenceWG.Done()
 
 			for s, sent := range doc.Sentenses {
@@ -182,7 +182,6 @@ func (m *MGLDA) WordDist() (*matrix.DenseMatrix, *matrix.DenseMatrix) {
 	if err := newNglz.AddDense(matrix.Ones(newNglz.Rows(), newNglz.Cols())); err != nil {
 		panic(err)
 	}
-	newNglz.Scale(float64(0.1))
 
 	newNloczw := m.Nloczw.Copy()
 	if err := m.Nloczw.AddDense(matrix.Ones(m.Nloczw.Rows(), m.Nloczw.Cols())); err != nil {
@@ -193,14 +192,13 @@ func (m *MGLDA) WordDist() (*matrix.DenseMatrix, *matrix.DenseMatrix) {
 	if err := newNlocz.AddDense(matrix.Ones(m.Nlocz.Rows(), m.Nlocz.Cols())); err != nil {
 		panic(err)
 	}
-	newNlocz.Scale(float64(0.1))
 
 	for i := 0; i < newNglzw.Rows(); i++ {
-		newNglzw.ScaleRow(i, newNglz.Get(i, 0))
+		newNglzw.ScaleRow(i, float64(1)/newNglz.Get(i, 0))
 	}
 
 	for i := 0; i < newNloczw.Rows(); i++ {
-		newNloczw.ScaleRow(i, newNlocz.Get(i, 0))
+		newNloczw.ScaleRow(i, float64(1)/newNlocz.Get(i, 0))
 	}
 
 	return newNglzw, newNloczw
@@ -330,8 +328,8 @@ func GetWordTopicDist(m *MGLDA, vocabulary []string, wt *bufio.Writer) {
 	for d, doc := range *m.Docs {
 		topicWG.Add(1)
 
-		// go func(d int, doc Document) {
-		func(d int, doc Document) {
+		go func(d int, doc Document) {
+			// func(d int, doc Document) {
 			defer topicWG.Done()
 			for s, sent := range doc.Sentenses {
 				for w, wd := range sent.Words {
@@ -370,12 +368,13 @@ func GetWordTopicDist(m *MGLDA, vocabulary []string, wt *bufio.Writer) {
 			idx = append(idx, j)
 		}
 		floats.Argsort(rows, idx)
-		for _, w := range idx[:topicLimit] {
+		for j := len(idx) - 1; j > len(idx)-topicLimit; j-- {
+			w := idx[j]
 			tp := fmt.Sprintf("%s: %f (%d)\n",
 				vocabulary[w], phiGl.Get(i, w),
 				wordGlCount[i][w])
 			wt.WriteString(tp)
-			glog.Info(tp)
+			glog.Debug(tp)
 		}
 	}
 	for i := 0; i < m.LocalK; i++ {
@@ -388,12 +387,13 @@ func GetWordTopicDist(m *MGLDA, vocabulary []string, wt *bufio.Writer) {
 			idx = append(idx, j)
 		}
 		floats.Argsort(rows, idx)
-		for _, w := range idx[:topicLimit] {
+		for j := len(idx) - 1; j > len(idx)-topicLimit; j-- {
+			w := idx[j]
 			tp := fmt.Sprintf("%s: %f (%d)\n",
 				vocabulary[w], phiLoc.Get(i, w),
 				wordLocCount[i][w])
 			wt.WriteString(tp)
-			glog.Info(tp)
+			glog.Debug(tp)
 		}
 	}
 
