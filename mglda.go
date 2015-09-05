@@ -67,7 +67,8 @@ type MGLDA struct {
 func (m *MGLDA) Inference() {
 	for d, doc := range *m.Docs {
 		inferenceWG.Add(1)
-		go func(d int, doc Document) {
+		// go func(d int, doc Document) {
+		func(d int, doc Document) {
 			defer inferenceWG.Done()
 
 			for s, sent := range doc.Sentenses {
@@ -82,18 +83,18 @@ func (m *MGLDA) Inference() {
 						if r == globalTopic {
 							m.Nglzw.Set(z, wd, m.Nglzw.Get(z, wd)-1)
 							m.Nglz.Set(z, 0, m.Nglz.Get(z, 0)-1)
-							m.Ndvgl[d][s-v] -= 1
+							m.Ndvgl[d][s+v] -= 1
 							m.Ndglz.Set(d, z, m.Ndglz.Get(d, z)-1)
 							m.Ndgl.Set(d, 0, m.Ndgl.Get(d, 0)-1)
 						} else {
 							m.Nloczw.Set(z, wd, m.Nloczw.Get(z, wd)-1)
 							m.Nlocz.Set(z, 0, m.Nlocz.Get(z, 0)-1)
-							m.Ndvloc[d][s-v] -= 1
-							m.Ndvlocz[d][s-v][z] -= 1
+							m.Ndvloc[d][s+v] -= 1
+							m.Ndvlocz[d][s+v][z] -= 1
 						}
 						m.Ndsv[d][s][v] -= 1
 						m.Nds[d][s] -= 1
-						m.Ndv[d][s-v] -= 1
+						m.Ndv[d][s+v] -= 1
 					}()
 
 					pvrz := []float64{}
@@ -194,15 +195,15 @@ func (m *MGLDA) WordDist() (*matrix.DenseMatrix, *matrix.DenseMatrix) {
 	}
 	newNlocz.Scale(float64(0.1))
 
-	gl, err := newNglzw.TimesDense(newNglz)
-	if err != nil {
-		panic(err)
+	for i := 0; i < newNglzw.Rows(); i++ {
+		newNglzw.ScaleRow(i, newNglz.Get(i, 0))
 	}
-	loc, err := newNloczw.TimesDense(newNlocz)
-	if err != nil {
-		panic(err)
+
+	for i := 0; i < newNloczw.Rows(); i++ {
+		newNloczw.ScaleRow(i, newNlocz.Get(i, 0))
 	}
-	return gl, loc
+
+	return newNglzw, newNloczw
 }
 
 func NewMGLDA(globalK, localK int, gamma, globalAlpha, localAlpha,
@@ -233,6 +234,7 @@ func NewMGLDA(globalK, localK int, gamma, globalAlpha, localAlpha,
 		Nlocz:          matrix.Zeros(localK, 1),
 	}
 
+	glog.Info("random fitting MGLDA")
 	for _, doc := range *docs {
 		vd := [][]int{}
 		rd := [][]string{}
@@ -283,6 +285,7 @@ func NewMGLDA(globalK, localK int, gamma, globalAlpha, localAlpha,
 		m.Nds = append(m.Nds, ndsd)
 	}
 
+	glog.Info("initializing")
 	for d, doc := range *docs {
 		for s, sts := range doc.Sentenses {
 			for w, wd := range sts.Words {
@@ -314,32 +317,50 @@ func NewMGLDA(globalK, localK int, gamma, globalAlpha, localAlpha,
 func GetWordTopicDist(m *MGLDA, vocabulary []string, wt *bufio.Writer) {
 	zGlCount := make([]int, m.GlobalK)
 	zLocCount := make([]int, m.LocalK)
-	wordGlCount := make([]map[int]int, m.GlobalK)
-	wordLocCount := make([]map[int]int, m.LocalK)
+	wordGlCount := []map[int]int{}
+	wordLocCount := []map[int]int{}
+	for i := 0; i < m.GlobalK; i++ {
+		wordGlCount = append(wordGlCount, map[int]int{})
+	}
+	for i := 0; i < m.LocalK; i++ {
+		wordLocCount = append(wordLocCount, map[int]int{})
+	}
 
+	glog.Info("Get words distribution")
+	fmt.Println("Get words distribution")
 	for d, doc := range *m.Docs {
-		topicWG.Add(1)
+		// topicWG.Add(1)
 
-		go func(d int, doc Document) {
+		// go func(d int, doc Document) {
+		func(d int, doc Document) {
+			// defer topicWG.Done()
 			for s, sent := range doc.Sentenses {
 				for w, wd := range sent.Words {
 					r := m.Rdsn[d][s][w]
 					z := m.Zdsn[d][s][w]
 					if r == globalTopic {
-						topicLock.Lock()
-						defer topicLock.Unlock()
-						zGlCount[z] += 1
-						wordGlCount[z][wd] += 1
+						func() {
+							topicLock.Lock()
+							defer topicLock.Unlock()
+							zGlCount[z] += 1
+							wordGlCount[z][wd] += 1
+						}()
 					} else {
-						topicLock.Lock()
-						defer topicLock.Unlock()
-						zLocCount[z] += 1
-						wordLocCount[z][wd] += 1
+						func() {
+							topicLock.Lock()
+							defer topicLock.Unlock()
+							zLocCount[z] += 1
+							wordLocCount[z][wd] += 1
+						}()
+
 					}
 				}
 			}
 		}(d, doc)
 	}
+	// topicWG.Wait()
+	fmt.Println("done")
+	glog.Info("Done dist")
 	phiGl, phiLoc := m.WordDist()
 	for i := 0; i < m.GlobalK; i++ {
 		header := fmt.Sprintf("-- global topic: %d (%d words)\n", i, zGlCount[i])
