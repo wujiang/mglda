@@ -10,25 +10,32 @@ import (
 	"gitlab.com/wujiang/mglda"
 )
 
-const (
-	globalK        = 60
-	localK         = 30
-	gamma          = 0.1
-	globalAlpha    = 0.1
-	localAlpha     = 0.1
-	globalAlphaMix = 0.1
-	localAlphaMix  = 0.1
-	globalBeta     = 0.1
-	localBeta      = 0.1
-	uT             = 3
-)
-
-type Data struct {
-	Docs       []mglda.Document `json:"docs"`
-	Vocabulary []string         `json:"vocabulary"`
+type Configuration struct {
+	GlobalK        int     `json:"global_k"`
+	LocalK         int     `json:"local_k"`
+	Gamma          float64 `json:"gamma"`
+	GlobalAlpha    float64 `json:"global_alpha"`
+	LocalAlpha     float64 `json:"local_alpha"`
+	GlobalAlphaMix float64 `json:"global_alpha_mix"`
+	LocalAlphaMix  float64 `jons:"local_alpha_mix"`
+	GlobalBeta     float64 `json:"global_beta"`
+	LocalBeta      float64 `json:"local_beta"`
+	T              int     `json:"t"`
+	Interation     int     `josn:"interation"`
+	DataPath       string  `json:"data_path"`
+	OutPath        string  `json:"out_path"`
 }
 
-type FakeData struct {
+func (d *Configuration) parse(fn string) error {
+	bt, err := ioutil.ReadFile(fn)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(bt, d)
+	return err
+}
+
+type Data struct {
 	Docs       []mglda.Document `json:"docs"`
 	Vocabulary []string         `json:"vocabulary"`
 }
@@ -43,22 +50,30 @@ func (d *Data) parse(fn string) error {
 }
 
 var (
-	category = flag.String("category", "/home/wjiang/workspace/bitbucket/review/data/amazon/cellphone/corpus.json", "category")
+	confFile = flag.String("c", "conf.json", "Configuration file")
 )
 
 func main() {
+	flag.Parse()
+	conf := &Configuration{}
+	if err := conf.parse(*confFile); err != nil {
+		panic(err)
+	}
+
 	data := Data{}
-	if err := data.parse(*category); err != nil {
+	if err := data.parse(conf.DataPath); err != nil {
 		panic(err)
 	}
 	uW := len(data.Vocabulary)
 	docs := data.Docs
-	m := mglda.NewMGLDA(globalK, localK, gamma, globalAlpha, localAlpha,
-		globalAlphaMix, localAlphaMix, globalBeta, localBeta,
-		uT, uW, &docs)
-	out, _ := os.Create("woot")
+	m := mglda.NewMGLDA(conf.GlobalK, conf.LocalK, conf.Gamma,
+		conf.GlobalAlpha, conf.LocalAlpha,
+		conf.GlobalAlphaMix, conf.LocalAlphaMix,
+		conf.GlobalBeta, conf.LocalBeta,
+		conf.T, uW, &docs)
+	out, _ := os.Create(conf.OutPath)
 	defer out.Close()
 	wt := bufio.NewWriter(out)
 	defer wt.Flush()
-	mglda.Learning(m, 1000, data.Vocabulary, wt)
+	mglda.Learning(m, conf.Interation, data.Vocabulary, wt)
 }
