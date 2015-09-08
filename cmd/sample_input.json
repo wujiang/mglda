@@ -1,0 +1,42 @@
+{
+    "docs": [
+        {
+            "sentenses": [
+                {
+                    "words": [0, 1, 2, 3, 4, 5]
+                },
+                {
+                    "words": [6, 7, 8, 2, 3, 9, 8, 2, 3, 5, 10, 1, 11, 0, 12, 4, 13, 14, 15, 16]
+                },
+                {
+                    "words": [17, 2, 0, 18, 19, 15, 20, 21, 22, 23]
+                },
+                {
+                    "words": [22, 24, 25]
+                },
+                {
+                    "words": [26]
+                },
+                {
+                    "words": [27, 28, 1]
+                }
+            ]
+        },
+        {
+            "sentenses": [
+                {
+                    "words": [29, 30, 31]
+                },
+                {
+                    "words": [32, 33, 34, 35]
+                },
+                {
+                    "words": [36, 37, 12, 38, 39, 40]
+                }
+            ]
+        }
+    ],
+    "vocabulary": [
+        "company", "money", "email", "telling", "product", "shipped", "week", "half", "received", "item", "finally", "back", "buy", "wo", "work", "phone", "depicts", "numerous", "ca", "find", "number", "website", "kind", "response", "customer", "service", "problem", "advice", "waste", "great", "ten", "compared", "real", "easy", "sync", "easily", "definite", "recommended", "transfer", "data", "cell"
+    ]
+}
