@@ -91,7 +91,7 @@ func (m *MGLDA) Inference() {
 						newZs = append(newZs, zt)
 						term1 := (m.Nglzw.Get(zt, wd) + m.GlobalBeta) / (m.Nglz.Get(zt, 0) + float64(m.W)*m.GlobalBeta)
 						term2 := (m.Ndsv[d][s][vt] + m.Gamma) / (m.Nds[d][s] + float64(m.T)*m.Gamma)
-						term3 := (m.Ndvgl[d][s+vt] + m.GlobalAlpha) / (m.Ndv[d][s+vt] + m.GlobalAlphaMix + m.LocalAlphaMix)
+						term3 := (m.Ndvgl[d][s+vt] + m.GlobalAlphaMix) / (m.Ndv[d][s+vt] + m.GlobalAlphaMix + m.LocalAlphaMix)
 						term4 := (m.Ndglz.Get(d, zt) + m.GlobalAlpha) / (m.Ndgl.Get(d, 0) + float64(m.GlobalK)*m.GlobalAlpha)
 						pvrz = append(pvrz, term1*term2*term3*term4)
 
@@ -108,7 +108,35 @@ func (m *MGLDA) Inference() {
 					}
 				}
 
-				randIdx := rand.Intn(len(newZs))
+				// sampling from multinomial distribution
+				idx := []int{}
+				for j := 0; j < len(pvrz); j++ {
+					idx = append(idx, j)
+				}
+				floats.Argsort(pvrz, idx)
+				var sum float64
+				for _, item := range pvrz {
+					sum += item
+				}
+				var randIdx int
+				var partialSum float64
+				idxCount := map[int]int{}
+				for i := 0; i < 100; i++ {
+					threshold := rand.Float64()
+					for j, item := range pvrz {
+						partialSum += item / sum
+						if partialSum >= threshold {
+							idxCount[idx[j]] += 1
+							break
+						}
+					}
+				}
+				var maxCount int
+				for idx, cnt := range idxCount {
+					if cnt > maxCount {
+						randIdx = idx
+					}
+				}
 				newV := newVs[randIdx]
 				newR := newRs[randIdx]
 				newZ := newZs[randIdx]
