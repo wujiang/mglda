@@ -109,24 +109,23 @@ func (m *MGLDA) Inference() {
 				}
 
 				// sampling from multinomial distribution
-				idx := []int{}
-				for j := 0; j < len(pvrz); j++ {
-					idx = append(idx, j)
+				origIdx := []int{}
+				var sum float64
+				for j, item := range pvrz {
+					sum += item
+					origIdx = append(origIdx, j)
 				}
 				floats.Argsort(pvrz, idx)
-				var sum float64
-				for _, item := range pvrz {
-					sum += item
-				}
+
 				var randIdx int
-				var partialSum float64
 				idxCount := map[int]int{}
 				for i := 0; i < 100; i++ {
+					var partialSum float64
 					threshold := rand.Float64()
-					for j, item := range pvrz {
-						partialSum += item / sum
+					for j := len(pvrz) - 1; j >= 0; j-- {
+						partialSum += pvrz[j] / sum
 						if partialSum >= threshold {
-							idxCount[idx[j]] += 1
+							idxCount[origIdx[j]] += 1
 							break
 						}
 					}
@@ -140,7 +139,6 @@ func (m *MGLDA) Inference() {
 				newV := newVs[randIdx]
 				newR := newRs[randIdx]
 				newZ := newZs[randIdx]
-
 				// update
 				if newR == globalTopic {
 					m.Nglzw.Set(newZ, wd, m.Nglzw.Get(newZ, wd)+1)
