@@ -115,7 +115,7 @@ func (m *MGLDA) Inference() {
 					sum += item
 					origIdx = append(origIdx, j)
 				}
-				floats.Argsort(pvrz, idx)
+				floats.Argsort(pvrz, origIdx)
 
 				var randIdx int
 				idxCount := map[int]int{}
@@ -166,33 +166,25 @@ func (m *MGLDA) Inference() {
 
 // WordDist returns a topic word distribution
 func (m *MGLDA) WordDist() (*matrix.DenseMatrix, *matrix.DenseMatrix) {
-	newNglzw := m.Nglzw.Copy()
-	if err := newNglzw.AddDense(matrix.Ones(newNglzw.Rows(), newNglzw.Cols())); err != nil {
-		panic(err)
-	}
 	newNglz := m.Nglz.Copy()
 	if err := newNglz.AddDense(matrix.Ones(newNglz.Rows(), newNglz.Cols())); err != nil {
 		panic(err)
 	}
 
-	newNloczw := m.Nloczw.Copy()
-	if err := m.Nloczw.AddDense(matrix.Ones(m.Nloczw.Rows(), m.Nloczw.Cols())); err != nil {
-		panic(err)
-	}
 	newNlocz := m.Nlocz.Copy()
-
 	if err := newNlocz.AddDense(matrix.Ones(m.Nlocz.Rows(), m.Nlocz.Cols())); err != nil {
 		panic(err)
 	}
 
+	newNglzw := m.Nglzw.Copy()
 	for i := 0; i < newNglzw.Rows(); i++ {
 		newNglzw.ScaleRow(i, float64(1)/newNglz.Get(i, 0))
 	}
 
+	newNloczw := m.Nloczw.Copy()
 	for i := 0; i < newNloczw.Rows(); i++ {
 		newNloczw.ScaleRow(i, float64(1)/newNlocz.Get(i, 0))
 	}
-
 	return newNglzw, newNloczw
 }
 
